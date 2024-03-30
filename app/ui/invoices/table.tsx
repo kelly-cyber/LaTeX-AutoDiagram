@@ -2,7 +2,17 @@ import Image from 'next/image';
 import { UpdateInvoice, DeleteInvoice } from '@/app/ui/invoices/buttons';
 import InvoiceStatus from '@/app/ui/invoices/status';
 import { formatDateToLocal, formatCurrency } from '@/app/lib/utils';
-import { fetchFilteredInvoices } from '@/app/lib/data';
+import { fetchFilteredInvoices, fetchDiagrams } from '@/app/lib/data';
+import Link from 'next/link';
+import { DiagramsTable } from '@/app/lib/definitions';
+
+interface DiagramsByName {
+  [key: string]: DiagramsTable;
+}
+
+interface LinkList {
+  [key: string]: string;
+}
 
 export default async function InvoicesTable({
   query,
@@ -12,7 +22,28 @@ export default async function InvoicesTable({
   currentPage: number;
 }) {
   const invoices = await fetchFilteredInvoices(query, currentPage);
-
+  const diagrams = await fetchDiagrams();
+  const diagramsByName: DiagramsByName = {}
+  const initialLinks: LinkList = {}
+  const finalLinks: LinkList = {}
+  for (let diagram of diagrams) {
+    const name = diagram.name
+    diagramsByName[name] = diagram
+  }
+  for (let name in diagramsByName) {
+    initialLinks[name] = diagramsByName[name].initial
+  }
+  for (let name in diagramsByName) {
+    finalLinks[name] = String(diagramsByName[name].final)
+  }
+  const generateLink = (code: string) => {
+    const data = code?.toString().trim().replaceAll(/%[^]*?\n/g, '').replaceAll('\\n', '').replaceAll(/\\\\/g, '\\')
+    if (!data) return ''
+    const bin = Buffer.from(data).toString('base64');
+    const bin_uri = "data:text/plain;base64," + bin;
+    const final_uri = "https://www.overleaf.com/docs?snip_uri=" + bin_uri;
+    return final_uri
+  };
   return (
     <div className="mt-6 flow-root">
       <div className="inline-block min-w-full align-middle">
@@ -26,13 +57,6 @@ export default async function InvoicesTable({
                 <div className="flex items-center justify-between border-b pb-4">
                   <div>
                     <div className="mb-2 flex items-center">
-                      <Image
-                        src={invoice.image_url}
-                        className="mr-2 rounded-full"
-                        width={28}
-                        height={28}
-                        alt={`${invoice.name}'s profile picture`}
-                      />
                       <p>{invoice.name}</p>
                     </div>
                     <p className="text-sm text-gray-500">{invoice.email}</p>
@@ -58,19 +82,19 @@ export default async function InvoicesTable({
             <thead className="rounded-lg text-left text-sm font-normal">
               <tr>
                 <th scope="col" className="px-4 py-5 font-medium sm:pl-6">
-                  Customer
+                  File Name
                 </th>
                 <th scope="col" className="px-3 py-5 font-medium">
-                  Email
+                  Description
                 </th>
                 <th scope="col" className="px-3 py-5 font-medium">
-                  Amount
+                  Initial Diagram
+                </th>
+                <th scope="col" className="px-3 py-5 font-medium">
+                  Final Render
                 </th>
                 <th scope="col" className="px-3 py-5 font-medium">
                   Date
-                </th>
-                <th scope="col" className="px-3 py-5 font-medium">
-                  Status
                 </th>
                 <th scope="col" className="relative py-3 pl-6 pr-3">
                   <span className="sr-only">Edit</span>
@@ -85,13 +109,6 @@ export default async function InvoicesTable({
                 >
                   <td className="whitespace-nowrap py-3 pl-6 pr-3">
                     <div className="flex items-center gap-3">
-                      <Image
-                        src={invoice.image_url}
-                        className="rounded-full"
-                        width={28}
-                        height={28}
-                        alt={`${invoice.name}'s profile picture`}
-                      />
                       <p>{invoice.name}</p>
                     </div>
                   </td>
@@ -99,13 +116,19 @@ export default async function InvoicesTable({
                     {invoice.email}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3">
-                    {formatCurrency(invoice.amount)}
+                    <Link href={initialLinks[invoice.name] || "hi :0"} style={{color: "blue"}}>{invoice.name.slice(0, 3)}.initial_render</Link>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-3">
+                  <Link
+                    href={generateLink(finalLinks[invoice.name]) || "hi :0"}
+                    style={{color: "blue"}}
+                  >
+                    {invoice.name.slice(3, 7)}.final_render
+                  </Link>
+                  
                   </td>
                   <td className="whitespace-nowrap px-3 py-3">
                     {formatDateToLocal(invoice.date)}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-3">
-                    <InvoiceStatus status={invoice.status} />
                   </td>
                   <td className="whitespace-nowrap py-3 pl-6 pr-3">
                     <div className="flex justify-end gap-3">

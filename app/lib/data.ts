@@ -4,6 +4,7 @@ import {
   CustomersTable,
   InvoiceForm,
   InvoicesTable,
+  DiagramsTable,
   LatestInvoiceRaw,
   User,
   Revenue,
@@ -55,29 +56,20 @@ export async function fetchCardData() {
     // how to initialize multiple queries in parallel with JS.
     const invoiceCountPromise = sql`SELECT COUNT(*) FROM invoices`;
     const customerCountPromise = sql`SELECT COUNT(*) FROM customers`;
-    const invoiceStatusPromise = sql`SELECT
-         SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END) AS "paid",
-         SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) AS "pending"
-         FROM invoices`;
 
     const data = await Promise.all([
       invoiceCountPromise,
       customerCountPromise,
-      invoiceStatusPromise,
     ]);
 
     const numberOfInvoices = Number(data[0].rows[0].count ?? '0');
     const numberOfCustomers = Number(data[1].rows[0].count ?? '0');
-    const totalPaidInvoices = formatCurrency(data[2].rows[0].paid ?? '0');
-    const totalPendingInvoices = formatCurrency(data[2].rows[0].pending ?? '0');
 
     noStore();
 
     return {
       numberOfCustomers,
       numberOfInvoices,
-      totalPaidInvoices,
-      totalPendingInvoices,
     };
   } catch (error) {
     console.error('Database Error:', error);
@@ -120,6 +112,21 @@ export async function fetchFilteredInvoices(
   } catch (error) {
     console.error('Database Error:', error);
     throw new Error('Failed to fetch invoices.');
+  }
+}
+
+export async function fetchDiagrams() {
+  try {
+    const diagrams = await sql<DiagramsTable>`
+      SELECT * FROM diagrams
+    `;
+
+    noStore();
+
+    return diagrams.rows;
+  } catch (error) {
+    console.error('Database Error:', error);
+    throw new Error('Failed to fetch diagrams.');
   }
 }
 
@@ -178,16 +185,17 @@ export async function fetchCustomers() {
     const data = await sql<CustomerField>`
       SELECT
         id,
-        name
+        name,
+        email,
+        image_url
       FROM customers
-      ORDER BY name ASC
     `;
 
     const customers = data.rows;
 
     noStore();
 
-    return customers;
+    return [customers[0], customers[1], customers[2], customers[3], customers[4]];
   } catch (err) {
     console.error('Database Error:', err);
     throw new Error('Failed to fetch all customers.');
